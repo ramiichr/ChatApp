@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
-import { SearchIcon, PlusIcon, UserPlusIcon } from "lucide-react";
+import { SearchIcon, PlusIcon } from "lucide-react";
 import axios from "../utils/api";
 
 const UserList = ({
@@ -17,15 +17,69 @@ const UserList = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showNewChat, setShowNewChat] = useState(false);
-  const [newChatEmail, setNewChatEmail] = useState("");
+  const [searchUsername, setSearchUsername] = useState("");
+  const [userSuggestions, setUserSuggestions] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchContainerRef = useRef(null);
   const { connectionStatus } = useSocket();
 
   // Debug logging for online users
   useEffect(() => {
     console.log("Online users in UserList:", onlineUsers);
   }, [onlineUsers]);
+
+  // Search for users as the user types
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (searchUsername.trim().length < 2) {
+        setUserSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      setIsSearching(true);
+      setShowSuggestions(true);
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(
+          `/api/users/search?query=${searchUsername}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        setUserSuggestions(response.data);
+      } catch (err) {
+        console.error("Error searching users:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimeout = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounceTimeout);
+  }, [searchUsername]);
+
+  // Handle clicks outside the dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const filteredConversations = conversations.filter((conversation) => {
     const otherUser = conversation.participants.find(
@@ -34,9 +88,9 @@ const UserList = ({
     return otherUser?.username.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const handleCreateConversation = async () => {
-    if (!newChatEmail.trim()) {
-      setError("Please enter an email address");
+  const handleCreateConversation = async (selectedUser) => {
+    if (!selectedUser || !selectedUser.email) {
+      setError("Please select a valid user");
       return;
     }
 
@@ -47,7 +101,7 @@ const UserList = ({
       const token = localStorage.getItem("token");
       const response = await axios.post(
         "/api/conversations",
-        { email: newChatEmail },
+        { email: selectedUser.email },
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -63,7 +117,9 @@ const UserList = ({
 
       // Reset form
       setShowNewChat(false);
-      setNewChatEmail("");
+      setSearchUsername("");
+      setUserSuggestions([]);
+      setShowSuggestions(false);
     } catch (err) {
       console.error("Error creating conversation:", err);
       setError(
@@ -128,29 +184,77 @@ const UserList = ({
             Start a new conversation
           </h4>
           {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
-          <Input
-            type="email"
-            placeholder="Enter email address"
-            value={newChatEmail}
-            onChange={(e) => setNewChatEmail(e.target.value)}
-            className="w-full mb-2 bg-gray-600 border border-gray-500 text-white text-sm"
-          />
-          <div className="flex space-x-2">
-            <Button
-              size="sm"
-              className="bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm"
-              onClick={handleCreateConversation}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                "Adding..."
-              ) : (
-                <>
-                  <UserPlusIcon size={14} className="mr-1" />
-                  Add
-                </>
-              )}
-            </Button>
+          <div className="relative" ref={searchContainerRef}>
+            <Input
+              type="text"
+              placeholder="Search for users..."
+              value={searchUsername}
+              onChange={(e) => setSearchUsername(e.target.value)}
+              onFocus={() => {
+                if (searchUsername.trim().length >= 2) {
+                  setShowSuggestions(true);
+                }
+              }}
+              onClick={(e) => {
+                // Prevent the click from closing the dropdown
+                e.stopPropagation();
+                if (searchUsername.trim().length >= 2) {
+                  setShowSuggestions(true);
+                }
+              }}
+              className="w-full mb-2 bg-gray-600 border border-gray-500 text-white text-sm"
+            />
+
+            {/* Loading indicator */}
+            {isSearching && (
+              <div className="absolute right-3 top-2">
+                <div className="animate-spin h-4 w-4 border-2 border-purple-500 rounded-full border-t-transparent"></div>
+              </div>
+            )}
+
+            {/* User suggestions dropdown */}
+            {showSuggestions && searchUsername.trim().length >= 2 && (
+              <div
+                className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
+              >
+                {userSuggestions.length > 0 ? (
+                  <ul className="py-1">
+                    {userSuggestions.map((user) => (
+                      <li key={user._id}>
+                        <button
+                          className="w-full text-left px-3 py-2 hover:bg-gray-600 text-white text-sm flex items-center"
+                          onClick={() => handleCreateConversation(user)}
+                          disabled={isLoading}
+                        >
+                          <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold mr-2">
+                            {user.username.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium">{user.username}</p>
+                            <p className="text-xs text-gray-400">
+                              {user.email}
+                            </p>
+                          </div>
+                          {isLoading && (
+                            <div className="ml-auto">
+                              <div className="animate-spin h-4 w-4 border-2 border-purple-500 rounded-full border-t-transparent"></div>
+                            </div>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="py-2 px-3 text-sm text-gray-400">
+                    No users found
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex space-x-2 mt-3">
             <Button
               size="sm"
               variant="ghost"
@@ -158,11 +262,22 @@ const UserList = ({
               onClick={() => {
                 setShowNewChat(false);
                 setError("");
-                setNewChatEmail("");
+                setSearchUsername("");
+                setUserSuggestions([]);
+                setShowSuggestions(false);
               }}
+              disabled={isLoading}
             >
               Cancel
             </Button>
+            {isLoading && (
+              <div className="flex items-center">
+                <div className="animate-spin h-4 w-4 border-2 border-purple-500 rounded-full border-t-transparent mr-2"></div>
+                <span className="text-xs text-gray-400">
+                  Creating conversation...
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
