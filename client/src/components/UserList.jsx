@@ -82,36 +82,38 @@ const UserList = ({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         <div className="relative">
           <Input
             type="text"
             placeholder="Search conversations..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50"
+            className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"
           />
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <SearchIcon size={18} className="text-gray-400" />
+            <SearchIcon size={16} className="text-gray-400" />
           </div>
         </div>
       </div>
 
-      <div className="flex justify-between items-center px-4 py-2">
-        <h3 className="text-sm font-medium text-gray-400">RECENT CHATS</h3>
+      <div className="flex justify-between items-center px-3 sm:px-4 py-2">
+        <h3 className="text-xs sm:text-sm font-medium text-gray-400">
+          RECENT CHATS
+        </h3>
         <Button
           variant="ghost"
           size="sm"
           className="text-gray-400 hover:text-white p-1"
           onClick={() => setShowNewChat(true)}
         >
-          <PlusIcon size={18} />
+          <PlusIcon size={16} />
         </Button>
       </div>
 
       {/* Connection status indicator when not connected */}
       {connectionStatus !== "connected" && (
-        <div className="mx-4 mb-2 p-2 bg-yellow-900 bg-opacity-30 rounded-md">
+        <div className="mx-3 sm:mx-4 mb-2 p-2 bg-yellow-900 bg-opacity-30 rounded-md">
           <p className="text-xs text-yellow-400">
             {connectionStatus === "connecting"
               ? "Connecting to server..."
@@ -121,8 +123,8 @@ const UserList = ({
       )}
 
       {showNewChat && (
-        <div className="mx-4 mb-4 p-3 bg-gray-700 rounded-md">
-          <h4 className="text-sm font-medium text-white mb-2">
+        <div className="mx-3 sm:mx-4 mb-4 p-3 bg-gray-700 rounded-md">
+          <h4 className="text-xs sm:text-sm font-medium text-white mb-2">
             Start a new conversation
           </h4>
           {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
@@ -131,12 +133,12 @@ const UserList = ({
             placeholder="Enter email address"
             value={newChatEmail}
             onChange={(e) => setNewChatEmail(e.target.value)}
-            className="w-full mb-2 bg-gray-600 border border-gray-500 text-white"
+            className="w-full mb-2 bg-gray-600 border border-gray-500 text-white text-sm"
           />
           <div className="flex space-x-2">
             <Button
               size="sm"
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm"
               onClick={handleCreateConversation}
               disabled={isLoading}
             >
@@ -144,7 +146,7 @@ const UserList = ({
                 "Adding..."
               ) : (
                 <>
-                  <UserPlusIcon size={16} className="mr-1" />
+                  <UserPlusIcon size={14} className="mr-1" />
                   Add
                 </>
               )}
@@ -152,7 +154,7 @@ const UserList = ({
             <Button
               size="sm"
               variant="ghost"
-              className="text-gray-300 hover:text-white"
+              className="text-gray-300 hover:text-white text-xs sm:text-sm"
               onClick={() => {
                 setShowNewChat(false);
                 setError("");
@@ -179,20 +181,20 @@ const UserList = ({
                 <li key={conversation._id}>
                   <button
                     onClick={() => onSelect(conversation)}
-                    className={`w-full flex items-center p-3 rounded-md transition-colors ${
+                    className={`w-full flex items-center p-2 sm:p-3 rounded-md transition-colors ${
                       isActive ? "bg-gray-700" : "hover:bg-gray-700"
                     }`}
                   >
                     <div className="relative">
-                      <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold">
                         {otherUser?.username.charAt(0).toUpperCase()}
                       </div>
                       {isOnline && (
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-800"></div>
+                        <div className="absolute bottom-0 right-0 w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full border-2 border-gray-800"></div>
                       )}
                     </div>
-                    <div className="ml-3 text-left">
-                      <p className="text-sm font-medium text-white">
+                    <div className="ml-2 sm:ml-3 text-left">
+                      <p className="text-xs sm:text-sm font-medium text-white">
                         {otherUser?.username}
                       </p>
                       <p className="text-xs text-gray-400 truncate">
@@ -206,13 +208,13 @@ const UserList = ({
           </ul>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4">
-            <p className="text-center mb-4">No conversations found</p>
+            <p className="text-center mb-4 text-sm">No conversations found</p>
             <Button
               size="sm"
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm"
               onClick={() => setShowNewChat(true)}
             >
-              <PlusIcon size={16} className="mr-1" />
+              <PlusIcon size={14} className="mr-1" />
               Start a new chat
             </Button>
           </div>
