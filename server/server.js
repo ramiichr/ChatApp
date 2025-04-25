@@ -37,10 +37,27 @@ app.use(
 app.use(express.json());
 
 // Connect to MongoDB
+console.log("Attempting to connect to MongoDB...");
+console.log(
+  "MongoDB URI (masked):",
+  process.env.MONGODB_URI
+    ? "***" +
+        process.env.MONGODB_URI.substring(process.env.MONGODB_URI.indexOf("@"))
+    : "Not defined"
+);
+
 mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => console.log("Connected to MongoDB"))
-  .catch((err) => console.error("MongoDB connection error:", err));
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+  })
+  .then(() => console.log("Connected to MongoDB successfully"))
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+    console.error("Error details:", err.message);
+    // Don't crash the server, but log the error
+  });
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -69,6 +86,44 @@ app.get("/api/test", (req, res) => {
     message: "API is working correctly",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
+    mongodb_uri_exists: !!process.env.MONGODB_URI,
+    jwt_secret_exists: !!process.env.JWT_SECRET,
+    node_env: process.env.NODE_ENV,
+    port: process.env.PORT || 5000,
+  });
+});
+
+// Add a health check endpoint
+app.get("/health", (req, res) => {
+  const mongoStatus = mongoose.connection.readyState;
+  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+  const mongoStatusText = [
+    "disconnected",
+    "connected",
+    "connecting",
+    "disconnecting",
+  ][mongoStatus];
+
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    mongodb: {
+      status: mongoStatusText,
+      readyState: mongoStatus,
+    },
+    environment: process.env.NODE_ENV || "development",
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+  res.status(500).json({
+    error: "Server error",
+    message:
+      process.env.NODE_ENV === "production"
+        ? "An unexpected error occurred"
+        : err.message,
   });
 });
 
