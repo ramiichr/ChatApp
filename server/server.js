@@ -8,23 +8,34 @@ const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const conversationRoutes = require("./routes/conversations");
 const { authenticateSocket } = require("./middleware/auth");
-const Message = require("./models/Message"); // Import Message model
-const Conversation = require("./models/Conversation"); // Import Conversation model
+const Message = require("./models/Message");
+const Conversation = require("./models/Conversation");
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Configure CORS to accept connections from any origin in development
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin:
+      process.env.NODE_ENV === "production" ? process.env.CLIENT_URL : "*",
     methods: ["GET", "POST"],
     credentials: true,
   },
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin:
+      process.env.NODE_ENV === "production" ? process.env.CLIENT_URL : "*",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Connect to MongoDB
@@ -38,25 +49,86 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/conversations", conversationRoutes);
 
+// Add a status endpoint
+app.get("/api/status", (req, res) => {
+  res.json({
+    status: "online",
+    onlineUsers: Array.from(userSockets.keys()).map((userId) => {
+      const user = getUserById(userId);
+      return {
+        id: userId,
+        username: user ? user.username : "Unknown",
+        connections: userSockets.get(userId).size,
+      };
+    }),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Socket.io
-const onlineUsers = new Map();
+// Instead of a simple Map, we'll use a Map of Sets to track multiple connections per user
+const userSockets = new Map(); // userId -> Set of socket IDs
+const socketUsers = new Map(); // socketId -> userId
+
+// Helper function to get a user by ID from our connected users
+function getUserById(userId) {
+  for (const [socketId, socket] of io.sockets.sockets.entries()) {
+    if (socket.user && socket.user._id.toString() === userId) {
+      return socket.user;
+    }
+  }
+  return null;
+}
+
+// Helper function to broadcast online users
+function broadcastOnlineUsers() {
+  const onlineUsers = Array.from(userSockets.keys())
+    .map((userId) => {
+      const user = getUserById(userId);
+      if (!user) return null;
+
+      return {
+        _id: userId,
+        username: user.username,
+      };
+    })
+    .filter(Boolean); // Remove any null entries
+
+  io.emit("users:online", onlineUsers);
+  console.log(
+    "Broadcasting online users:",
+    onlineUsers.map((u) => u.username)
+  );
+}
 
 io.use(authenticateSocket);
 
 io.on("connection", (socket) => {
   const userId = socket.user._id.toString();
+  const socketId = socket.id;
 
-  // Add user to online users
-  onlineUsers.set(userId, {
-    _id: userId,
-    username: socket.user.username,
-    socketId: socket.id,
-  });
+  console.log(
+    `Socket connected: ${socketId} for user ${socket.user.username} (${userId})`
+  );
+
+  // Add this socket to the user's set of connections
+  if (!userSockets.has(userId)) {
+    userSockets.set(userId, new Set());
+  }
+  userSockets.get(userId).add(socketId);
+  socketUsers.set(socketId, userId);
+
+  // Log current online users
+  console.log(
+    "Current online users:",
+    Array.from(userSockets.keys()).map((id) => {
+      const user = getUserById(id);
+      return user ? user.username : "Unknown";
+    })
+  );
 
   // Broadcast online users
-  io.emit("users:online", Array.from(onlineUsers.values()));
-
-  console.log(`User connected: ${socket.user.username} (${userId})`);
+  broadcastOnlineUsers();
 
   // Handle messages
   socket.on("message:send", async (message) => {
@@ -79,15 +151,16 @@ io.on("connection", (socket) => {
       );
 
       if (recipient) {
-        const recipientSocketId = onlineUsers.get(
-          recipient._id.toString()
-        )?.socketId;
+        const recipientId = recipient._id.toString();
+        const recipientSockets = userSockets.get(recipientId);
 
-        if (recipientSocketId) {
-          // Send message to recipient
-          io.to(recipientSocketId).emit("message:received", {
-            ...message,
-            _id: newMessage._id,
+        if (recipientSockets && recipientSockets.size > 0) {
+          // Send message to all of recipient's connected sockets
+          recipientSockets.forEach((recipientSocketId) => {
+            io.to(recipientSocketId).emit("message:received", {
+              ...message,
+              _id: newMessage._id,
+            });
           });
         }
       }
@@ -98,9 +171,11 @@ io.on("connection", (socket) => {
 
   // Handle calls
   socket.on("call:start", ({ to, type }) => {
-    const recipientSocketId = onlineUsers.get(to)?.socketId;
+    const recipientSockets = userSockets.get(to);
 
-    if (recipientSocketId) {
+    if (recipientSockets && recipientSockets.size > 0) {
+      // Send to first socket (we can only have one call at a time per user)
+      const recipientSocketId = Array.from(recipientSockets)[0];
       io.to(recipientSocketId).emit("call:incoming", {
         from: {
           _id: userId,
@@ -112,9 +187,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call:accept", ({ to }) => {
-    const callerSocketId = onlineUsers.get(to)?.socketId;
+    const callerSockets = userSockets.get(to);
 
-    if (callerSocketId) {
+    if (callerSockets && callerSockets.size > 0) {
+      // Send to first socket
+      const callerSocketId = Array.from(callerSockets)[0];
       io.to(callerSocketId).emit("call:accepted", {
         to: userId,
       });
@@ -122,9 +199,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call:reject", ({ to }) => {
-    const callerSocketId = onlineUsers.get(to)?.socketId;
+    const callerSockets = userSockets.get(to);
 
-    if (callerSocketId) {
+    if (callerSockets && callerSockets.size > 0) {
+      // Send to first socket
+      const callerSocketId = Array.from(callerSockets)[0];
       io.to(callerSocketId).emit("call:rejected", {
         by: userId,
       });
@@ -132,9 +211,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call:end", ({ to }) => {
-    const recipientSocketId = onlineUsers.get(to)?.socketId;
+    const recipientSockets = userSockets.get(to);
 
-    if (recipientSocketId) {
+    if (recipientSockets && recipientSockets.size > 0) {
+      // Send to first socket
+      const recipientSocketId = Array.from(recipientSockets)[0];
       io.to(recipientSocketId).emit("call:ended", {
         by: userId,
       });
@@ -142,9 +223,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call:offer", ({ to, offer }) => {
-    const recipientSocketId = onlineUsers.get(to)?.socketId;
+    const recipientSockets = userSockets.get(to);
 
-    if (recipientSocketId) {
+    if (recipientSockets && recipientSockets.size > 0) {
+      // Send to first socket
+      const recipientSocketId = Array.from(recipientSockets)[0];
       io.to(recipientSocketId).emit("call:offer", {
         from: userId,
         offer,
@@ -153,9 +236,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call:answer", ({ to, answer }) => {
-    const callerSocketId = onlineUsers.get(to)?.socketId;
+    const callerSockets = userSockets.get(to);
 
-    if (callerSocketId) {
+    if (callerSockets && callerSockets.size > 0) {
+      // Send to first socket
+      const callerSocketId = Array.from(callerSockets)[0];
       io.to(callerSocketId).emit("call:answer", {
         answer,
       });
@@ -163,29 +248,54 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call:ice-candidate", ({ to, candidate }) => {
-    const recipientSocketId = onlineUsers.get(to)?.socketId;
+    const recipientSockets = userSockets.get(to);
 
-    if (recipientSocketId) {
+    if (recipientSockets && recipientSockets.size > 0) {
+      // Send to first socket
+      const recipientSocketId = Array.from(recipientSockets)[0];
       io.to(recipientSocketId).emit("call:ice-candidate", {
         candidate,
       });
     }
   });
 
+  // Add a ping/pong mechanism to test connectivity
+  socket.on("test:ping", () => {
+    console.log(`Received ping from ${socket.user.username}`);
+    socket.emit("test:pong");
+  });
+
   // Handle disconnection
   socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.user.username} (${userId})`);
+    console.log(
+      `Socket disconnected: ${socketId} for user ${socket.user.username} (${userId})`
+    );
 
-    // Remove user from online users
-    onlineUsers.delete(userId);
+    // Remove this socket from the user's connections
+    if (userSockets.has(userId)) {
+      userSockets.get(userId).delete(socketId);
 
-    // Broadcast online users
-    io.emit("users:online", Array.from(onlineUsers.values()));
+      // If this was the user's last connection, remove them from the map
+      if (userSockets.get(userId).size === 0) {
+        userSockets.delete(userId);
+      }
+    }
+
+    // Remove from socket-to-user mapping
+    socketUsers.delete(socketId);
+
+    // Broadcast updated online users
+    broadcastOnlineUsers();
   });
 });
 
 // Start server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const HOST = "0.0.0.0"; // Listen on all network interfaces
+
+server.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
+  console.log(
+    `For local network access, use your machine's IP address: http://<YOUR-IP-ADDRESS>:${PORT}`
+  );
 });

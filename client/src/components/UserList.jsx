@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSocket } from "../context/SocketContext";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { SearchIcon, PlusIcon, UserPlusIcon } from "lucide-react";
 import axios from "axios";
+import config from "../config";
 
 const UserList = ({
   conversations,
@@ -19,6 +21,12 @@ const UserList = ({
   const [newChatEmail, setNewChatEmail] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { connectionStatus } = useSocket();
+
+  // Debug logging for online users
+  useEffect(() => {
+    console.log("Online users in UserList:", onlineUsers);
+  }, [onlineUsers]);
 
   const filteredConversations = conversations.filter((conversation) => {
     const otherUser = conversation.participants.find(
@@ -39,7 +47,7 @@ const UserList = ({
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
-        "http://localhost:5000/api/conversations",
+        `${config.apiUrl}/api/conversations`,
         { email: newChatEmail },
         {
           headers: {
@@ -66,6 +74,11 @@ const UserList = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper function to check if a user is online
+  const isUserOnline = (userId) => {
+    return onlineUsers.some((user) => user._id === userId);
   };
 
   return (
@@ -96,6 +109,17 @@ const UserList = ({
           <PlusIcon size={18} />
         </Button>
       </div>
+
+      {/* Connection status indicator when not connected */}
+      {connectionStatus !== "connected" && (
+        <div className="mx-4 mb-2 p-2 bg-yellow-900 bg-opacity-30 rounded-md">
+          <p className="text-xs text-yellow-400">
+            {connectionStatus === "connecting"
+              ? "Connecting to server..."
+              : "Connection issue. Online status may be inaccurate."}
+          </p>
+        </div>
+      )}
 
       {showNewChat && (
         <div className="mx-4 mb-4 p-3 bg-gray-700 rounded-md">
@@ -149,9 +173,7 @@ const UserList = ({
               const otherUser = conversation.participants.find(
                 (p) => p._id !== currentUser?._id
               );
-              const isOnline = onlineUsers.some(
-                (user) => user._id === otherUser?._id
-              );
+              const isOnline = isUserOnline(otherUser?._id);
               const isActive = activeConversation?._id === conversation._id;
 
               return (

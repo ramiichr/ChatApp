@@ -33,7 +33,8 @@ const authenticateSocket = async (socket, next) => {
     const token = socket.handshake.auth.token;
 
     if (!token) {
-      return next(new Error("Authentication error"));
+      console.log("Socket auth failed: No token provided");
+      return next(new Error("Authentication error: No token provided"));
     }
 
     // Verify token
@@ -43,15 +44,20 @@ const authenticateSocket = async (socket, next) => {
     const user = await User.findById(decoded.userId).select("-password");
 
     if (!user) {
+      console.log("Socket auth failed: User not found");
       return next(new Error("User not found"));
     }
+
+    console.log(
+      `Socket authenticated for user: ${user.username} (${user._id})`
+    );
 
     // Add user to socket
     socket.user = user;
     next();
   } catch (error) {
-    console.error("Socket authentication error:", error);
-    next(new Error("Authentication error"));
+    console.error("Socket authentication error:", error.message);
+    next(new Error(`Authentication error: ${error.message}`));
   }
 };
 
