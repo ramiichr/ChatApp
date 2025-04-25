@@ -9,13 +9,17 @@ console.log("Environment variables:", {
 let SERVER_URL;
 
 if (process.env.NODE_ENV === "production") {
+  // Make sure we're using the correct server URL in production
   SERVER_URL =
     process.env.REACT_APP_SERVER_URL ||
     "https://chat-app-server-vercel.vercel.app";
+  console.log("Production mode detected, using server URL:", SERVER_URL);
 } else {
-  SERVER_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+  SERVER_URL = "http://localhost:5000";
+  console.log("Development mode detected, using local server URL:", SERVER_URL);
 }
 
+// Log the final SERVER_URL for debugging
 console.log("Using SERVER_URL:", SERVER_URL);
 
 // Ensure the URL doesn't have a trailing slash

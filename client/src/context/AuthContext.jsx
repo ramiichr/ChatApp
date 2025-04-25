@@ -43,11 +43,14 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setError(null);
+      console.log("Attempting login with API URL:", axios.defaults.baseURL);
+
       const response = await axios.post("/api/auth/login", {
         email,
         password,
       });
 
+      console.log("Login response:", response.data);
       const { token, user } = response.data;
       localStorage.setItem("token", token);
 
@@ -57,6 +60,12 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(user);
       return true;
     } catch (err) {
+      console.error("Login error:", err);
+      console.error("Error details:", {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
       setError(err.response?.data?.message || "Login failed");
       return false;
     }
@@ -65,12 +74,18 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, email, password) => {
     try {
       setError(null);
+      console.log(
+        "Attempting registration with API URL:",
+        axios.defaults.baseURL
+      );
+
       const response = await axios.post("/api/auth/register", {
         username,
         email,
         password,
       });
 
+      console.log("Registration response:", response.data);
       const { token, user } = response.data;
       localStorage.setItem("token", token);
 
@@ -80,6 +95,12 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(user);
       return true;
     } catch (err) {
+      console.error("Registration error:", err);
+      console.error("Error details:", {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
       setError(err.response?.data?.message || "Registration failed");
       return false;
     }

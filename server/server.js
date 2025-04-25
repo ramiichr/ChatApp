@@ -16,13 +16,10 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Configure CORS to accept connections from Vercel frontend in production
+// Configure CORS to accept connections from any origin
 const io = socketIo(server, {
   cors: {
-    origin:
-      process.env.NODE_ENV === "production"
-        ? [process.env.CLIENT_URL, "https://chat-app-client-vercel.vercel.app"]
-        : "*",
+    origin: "*", // Allow all origins
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -33,10 +30,7 @@ const io = socketIo(server, {
 // Middleware
 app.use(
   cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? [process.env.CLIENT_URL, "https://chat-app-client-vercel.vercel.app"]
-        : "*",
+    origin: "*", // Allow all origins
     credentials: true,
   })
 );
@@ -66,6 +60,15 @@ app.get("/api/status", (req, res) => {
       };
     }),
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Add a simple test endpoint that doesn't require authentication
+app.get("/api/test", (req, res) => {
+  res.json({
+    message: "API is working correctly",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
   });
 });
 
