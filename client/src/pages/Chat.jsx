@@ -16,8 +16,7 @@ import {
   WifiIcon,
   WifiOffIcon,
 } from "lucide-react";
-import axios from "axios";
-import config from "../config";
+import axios from "../utils/api";
 
 const Chat = () => {
   const { currentUser, logout, loading: authLoading } = useAuth();
@@ -42,7 +41,7 @@ const Chat = () => {
     // Fetch conversations
     const fetchConversations = async () => {
       try {
-        const response = await axios.get(`${config.apiUrl}/api/conversations`, {
+        const response = await axios.get(`/api/conversations`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
@@ -72,7 +71,7 @@ const Chat = () => {
     const fetchMessages = async () => {
       try {
         const response = await axios.get(
-          `${config.apiUrl}/api/conversations/${activeConversation._id}/messages`,
+          `/api/conversations/${activeConversation._id}/messages`,
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useState, useEffect, useContext } from "react";
-import axios from "axios";
+import axios from "../utils/api";
 
 const AuthContext = createContext();
 
@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
         // Set default auth header for all requests
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-        const response = await axios.get("http://localhost:5000/api/users/me");
+        const response = await axios.get("/api/users/me");
         setCurrentUser(response.data);
       } catch (err) {
         console.error("Error loading user:", err);
@@ -43,13 +43,10 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setError(null);
-      const response = await axios.post(
-        "http://localhost:5000/api/auth/login",
-        {
-          email,
-          password,
-        }
-      );
+      const response = await axios.post("/api/auth/login", {
+        email,
+        password,
+      });
 
       const { token, user } = response.data;
       localStorage.setItem("token", token);
@@ -68,14 +65,11 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, email, password) => {
     try {
       setError(null);
-      const response = await axios.post(
-        "http://localhost:5000/api/auth/register",
-        {
-          username,
-          email,
-          password,
-        }
-      );
+      const response = await axios.post("/api/auth/register", {
+        username,
+        email,
+        password,
+      });
 
       const { token, user } = response.data;
       localStorage.setItem("token", token);

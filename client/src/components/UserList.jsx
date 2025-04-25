@@ -5,8 +5,7 @@ import { useSocket } from "../context/SocketContext";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { SearchIcon, PlusIcon, UserPlusIcon } from "lucide-react";
-import axios from "axios";
-import config from "../config";
+import axios from "../utils/api";
 
 const UserList = ({
   conversations,
@@ -47,7 +46,7 @@ const UserList = ({
     try {
       const token = localStorage.getItem("token");
       const response = await axios.post(
-        `${config.apiUrl}/api/conversations`,
+        "/api/conversations",
         { email: newChatEmail },
         {
           headers: {
