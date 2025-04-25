@@ -4,7 +4,18 @@ console.log("Environment variables:", {
   NODE_ENV: process.env.NODE_ENV,
 });
 
-const SERVER_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+// In production with Vercel, we'll use the deployed API URL
+// For local development, use localhost
+let SERVER_URL;
+
+if (process.env.NODE_ENV === "production") {
+  SERVER_URL =
+    process.env.REACT_APP_SERVER_URL ||
+    "https://chat-app-server-vercel.vercel.app";
+} else {
+  SERVER_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+}
+
 console.log("Using SERVER_URL:", SERVER_URL);
 
 // Ensure the URL doesn't have a trailing slash
