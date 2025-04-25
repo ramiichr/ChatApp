@@ -38,26 +38,59 @@ app.use(express.json());
 
 // Connect to MongoDB
 console.log("Attempting to connect to MongoDB...");
+const mongoUri =
+  process.env.MONGODB_URI ||
+  "mongodb+srv://ramiirchr:Ramichr670@chatapp.hesoxgt.mongodb.net/chatapp?retryWrites=true&w=majority";
 console.log(
   "MongoDB URI (masked):",
-  process.env.MONGODB_URI
-    ? "***" +
-        process.env.MONGODB_URI.substring(process.env.MONGODB_URI.indexOf("@"))
-    : "Not defined"
+  mongoUri.replace(
+    /mongodb\+srv:\/\/([^:]+):([^@]+)@/,
+    "mongodb+srv://***:***@"
+  )
 );
 
-mongoose
-  .connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-  })
-  .then(() => console.log("Connected to MongoDB successfully"))
-  .catch((err) => {
-    console.error("MongoDB connection error:", err);
-    console.error("Error details:", err.message);
-    // Don't crash the server, but log the error
-  });
+// Function to connect to MongoDB with retries
+const connectWithRetry = (retryCount = 0, maxRetries = 5) => {
+  console.log(`MongoDB connection attempt ${retryCount + 1}/${maxRetries + 1}`);
+
+  return mongoose
+    .connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000, // Longer timeout for Vercel
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    })
+    .then(() => {
+      console.log("Connected to MongoDB successfully");
+      console.log("Connection state:", mongoose.connection.readyState);
+    })
+    .catch((err) => {
+      console.error(
+        `MongoDB connection error (attempt ${retryCount + 1}):`,
+        err
+      );
+      console.error("Error details:", err.message);
+
+      if (retryCount < maxRetries) {
+        console.log(`Retrying connection in 3 seconds...`);
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve(connectWithRetry(retryCount + 1, maxRetries));
+          }, 3000);
+        });
+      } else {
+        console.error(
+          "Maximum retry attempts reached. Could not connect to MongoDB."
+        );
+        // Don't crash the server, but log the error
+        return Promise.resolve(); // Continue without DB connection
+      }
+    });
+};
+
+// Start connection process
+connectWithRetry();
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -104,26 +137,67 @@ app.get("/health", (req, res) => {
     "disconnecting",
   ][mongoStatus];
 
+  // Get environment variables (masked for security)
+  const envVars = {
+    NODE_ENV: process.env.NODE_ENV || "not set",
+    PORT: process.env.PORT || "5000",
+    MONGODB_URI: process.env.MONGODB_URI ? "set (masked)" : "not set",
+    JWT_SECRET: process.env.JWT_SECRET ? "set (masked)" : "not set",
+    CLIENT_URL: process.env.CLIENT_URL || "not set",
+  };
+
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     mongodb: {
       status: mongoStatusText,
       readyState: mongoStatus,
+      host: mongoose.connection.host || "not connected",
+      name: mongoose.connection.name || "not connected",
     },
     environment: process.env.NODE_ENV || "development",
+    env_vars: envVars,
+    server: {
+      uptime: Math.floor(process.uptime()) + " seconds",
+      memory: process.memoryUsage(),
+      node_version: process.version,
+    },
   });
+});
+
+// 404 handler - must be before the error handler
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/") || req.path === "/health") {
+    console.log(`404 Not Found: ${req.method} ${req.path}`);
+    return res.status(404).json({
+      error: "Not Found",
+      message: `The requested endpoint ${req.method} ${req.path} does not exist`,
+      available_endpoints: [
+        "GET /api/test",
+        "GET /health",
+        "POST /api/auth/register",
+        "POST /api/auth/login",
+        "GET /api/users/me",
+        "GET /api/conversations",
+      ],
+    });
+  }
+  next();
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Server error:", err);
+  console.error("Error stack:", err.stack);
+
+  // Send detailed error in development, generic in production
   res.status(500).json({
     error: "Server error",
     message:
       process.env.NODE_ENV === "production"
         ? "An unexpected error occurred"
         : err.message,
+    stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
   });
 });
 
