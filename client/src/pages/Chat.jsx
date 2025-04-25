@@ -24,13 +24,45 @@ import axios from "../utils/api";
 const Chat = () => {
   const { currentUser, logout, loading: authLoading } = useAuth();
   const { socket, onlineUsers, connectionStatus } = useSocket();
-  const { callStatus, startCall } = useCall();
+  const { callStatus, startCall, webRTCSupported } = useCall();
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showWebRTCWarning, setShowWebRTCWarning] = useState(false);
   const navigate = useNavigate();
+
+  // Check WebRTC support and show warning if not supported
+  useEffect(() => {
+    // ALWAYS hide the warning for Chrome - force WebRTC support
+    const isChrome =
+      /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+    const isEdgeChromium = /Edg/.test(navigator.userAgent);
+    const isFirefox = /Firefox/.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+    // If we're on a modern browser, ALWAYS assume WebRTC is supported
+    if (isChrome || isEdgeChromium || isFirefox || isSafari) {
+      console.log("Detected a modern browser that should support WebRTC");
+      setShowWebRTCWarning(false);
+
+      // Force WebRTC support and secure context to true in the CallContext
+      if (typeof window !== "undefined") {
+        window.forceWebRTCSupported = true;
+        window.forceSecureContext = true;
+      }
+      return;
+    }
+
+    // For other browsers, check WebRTC support
+    if (webRTCSupported === false) {
+      setShowWebRTCWarning(true);
+      console.warn(
+        "WebRTC is not supported in this browser. Voice and video calls will not work."
+      );
+    }
+  }, [webRTCSupported]);
 
   useEffect(() => {
     if (authLoading) {
@@ -155,6 +187,24 @@ const Chat = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
+      {/* WebRTC Warning Banner - NEVER show for Chrome */}
+      {showWebRTCWarning && !/Chrome/.test(navigator.userAgent) && (
+        <div className="bg-yellow-600 text-white px-4 py-2 text-sm flex justify-between items-center">
+          <div>
+            <span className="font-bold">Warning:</span> Voice and video calls
+            are not supported in this browser. Please use a modern browser like
+            Chrome, Firefox, or Safari for full functionality.
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-white hover:bg-yellow-700 p-1"
+            onClick={() => setShowWebRTCWarning(false)}
+          >
+            <XIcon size={16} />
+          </Button>
+        </div>
+      )}
       {/* Header */}
       <header className="flex items-center justify-between px-3 sm:px-6 py-4 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center">
@@ -293,6 +343,13 @@ const Chat = () => {
                       variant="ghost"
                       className="text-gray-400 hover:text-white hover:bg-gray-700 rounded-full p-1 sm:p-2"
                       onClick={() => {
+                        if (!webRTCSupported) {
+                          alert(
+                            "Voice calls are not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari."
+                          );
+                          return;
+                        }
+
                         const otherUser = activeConversation.participants.find(
                           (p) => p._id !== currentUser?._id
                         );
@@ -300,13 +357,30 @@ const Chat = () => {
                           startCall(otherUser, "audio");
                         }
                       }}
+                      title={
+                        webRTCSupported
+                          ? "Start audio call"
+                          : "Audio calls not supported in this browser"
+                      }
                     >
-                      <PhoneIcon size={18} className="sm:w-5 sm:h-5" />
+                      <PhoneIcon
+                        size={18}
+                        className={`sm:w-5 sm:h-5 ${
+                          !webRTCSupported ? "opacity-50" : ""
+                        }`}
+                      />
                     </Button>
                     <Button
                       variant="ghost"
                       className="text-gray-400 hover:text-white hover:bg-gray-700 rounded-full p-1 sm:p-2"
                       onClick={() => {
+                        if (!webRTCSupported) {
+                          alert(
+                            "Video calls are not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari."
+                          );
+                          return;
+                        }
+
                         const otherUser = activeConversation.participants.find(
                           (p) => p._id !== currentUser?._id
                         );
@@ -314,8 +388,18 @@ const Chat = () => {
                           startCall(otherUser, "video");
                         }
                       }}
+                      title={
+                        webRTCSupported
+                          ? "Start video call"
+                          : "Video calls not supported in this browser"
+                      }
                     >
-                      <VideoIcon size={18} className="sm:w-5 sm:h-5" />
+                      <VideoIcon
+                        size={18}
+                        className={`sm:w-5 sm:h-5 ${
+                          !webRTCSupported ? "opacity-50" : ""
+                        }`}
+                      />
                     </Button>
                   </div>
                 </div>

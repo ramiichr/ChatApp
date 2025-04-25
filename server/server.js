@@ -171,11 +171,15 @@ io.on("connection", (socket) => {
 
   // Handle calls
   socket.on("call:start", ({ to, type }) => {
+    console.log(
+      `Call start request from ${socket.user.username} to user ID ${to}, type: ${type}`
+    );
     const recipientSockets = userSockets.get(to);
 
     if (recipientSockets && recipientSockets.size > 0) {
       // Send to first socket (we can only have one call at a time per user)
       const recipientSocketId = Array.from(recipientSockets)[0];
+      console.log(`Sending call:incoming to socket ${recipientSocketId}`);
       io.to(recipientSocketId).emit("call:incoming", {
         from: {
           _id: userId,
@@ -183,22 +187,38 @@ io.on("connection", (socket) => {
         },
         type,
       });
+    } else {
+      console.log(`User ${to} is not online or has no active sockets`);
+      // Notify caller that recipient is not available
+      socket.emit("call:error", {
+        message: "User is not available",
+        code: "USER_UNAVAILABLE",
+      });
     }
   });
 
   socket.on("call:accept", ({ to }) => {
+    console.log(`Call accept from ${socket.user.username} to user ID ${to}`);
     const callerSockets = userSockets.get(to);
 
     if (callerSockets && callerSockets.size > 0) {
       // Send to first socket
       const callerSocketId = Array.from(callerSockets)[0];
+      console.log(`Sending call:accepted to socket ${callerSocketId}`);
       io.to(callerSocketId).emit("call:accepted", {
         to: userId,
+      });
+    } else {
+      console.log(`Caller ${to} is no longer online`);
+      socket.emit("call:error", {
+        message: "Caller is no longer available",
+        code: "CALLER_UNAVAILABLE",
       });
     }
   });
 
   socket.on("call:reject", ({ to }) => {
+    console.log(`Call reject from ${socket.user.username} to user ID ${to}`);
     const callerSockets = userSockets.get(to);
 
     if (callerSockets && callerSockets.size > 0) {
@@ -211,6 +231,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call:end", ({ to }) => {
+    console.log(`Call end from ${socket.user.username} to user ID ${to}`);
     const recipientSockets = userSockets.get(to);
 
     if (recipientSockets && recipientSockets.size > 0) {
@@ -222,32 +243,59 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("call:offer", ({ to, offer }) => {
+  socket.on("call:offer", ({ to, offer, reconnect }) => {
+    console.log(
+      `Call offer from ${socket.user.username} to user ID ${to}${
+        reconnect ? " (reconnection attempt)" : ""
+      }`
+    );
     const recipientSockets = userSockets.get(to);
 
     if (recipientSockets && recipientSockets.size > 0) {
       // Send to first socket
       const recipientSocketId = Array.from(recipientSockets)[0];
+      console.log(`Sending call:offer to socket ${recipientSocketId}`);
       io.to(recipientSocketId).emit("call:offer", {
         from: userId,
         offer,
+        reconnect: !!reconnect,
+      });
+    } else {
+      console.log(`Recipient ${to} is no longer online`);
+      socket.emit("call:error", {
+        message: "Recipient is no longer available",
+        code: "RECIPIENT_UNAVAILABLE",
       });
     }
   });
 
-  socket.on("call:answer", ({ to, answer }) => {
+  socket.on("call:answer", ({ to, answer, reconnect }) => {
+    console.log(
+      `Call answer from ${socket.user.username} to user ID ${to}${
+        reconnect ? " (reconnection)" : ""
+      }`
+    );
     const callerSockets = userSockets.get(to);
 
     if (callerSockets && callerSockets.size > 0) {
       // Send to first socket
       const callerSocketId = Array.from(callerSockets)[0];
+      console.log(`Sending call:answer to socket ${callerSocketId}`);
       io.to(callerSocketId).emit("call:answer", {
         answer,
+        reconnect: !!reconnect,
+      });
+    } else {
+      console.log(`Caller ${to} is no longer online`);
+      socket.emit("call:error", {
+        message: "Caller is no longer available",
+        code: "CALLER_UNAVAILABLE",
       });
     }
   });
 
   socket.on("call:ice-candidate", ({ to, candidate }) => {
+    // console.log(`ICE candidate from ${socket.user.username} to user ID ${to}:`, candidate);
     const recipientSockets = userSockets.get(to);
 
     if (recipientSockets && recipientSockets.size > 0) {
@@ -256,6 +304,8 @@ io.on("connection", (socket) => {
       io.to(recipientSocketId).emit("call:ice-candidate", {
         candidate,
       });
+    } else {
+      console.log(`Recipient ${to} is no longer online for ICE candidate`);
     }
   });
 
