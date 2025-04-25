@@ -12,7 +12,7 @@ import { Button } from "../components/ui/Button";
 import { PhoneIcon, VideoIcon, LogOutIcon } from "lucide-react";
 
 const Chat = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, loading: authLoading } = useAuth();
   const { socket, onlineUsers } = useSocket();
   const { callStatus, startCall } = useCall();
   const [conversations, setConversations] = useState([]);
@@ -22,6 +22,10 @@ const Chat = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (authLoading) {
+      return; // Wait until authentication check is complete
+    }
+
     if (!currentUser) {
       navigate("/login");
       return;
@@ -48,7 +52,7 @@ const Chat = () => {
     };
 
     fetchConversations();
-  }, [currentUser, navigate]);
+  }, [currentUser, navigate, authLoading]);
 
   useEffect(() => {
     if (!socket || !activeConversation) return;
@@ -149,6 +153,7 @@ const Chat = () => {
                 currentUser={currentUser}
                 activeConversation={activeConversation}
                 onSelect={handleConversationSelect}
+                setConversations={setConversations}
               />
             )}
           </div>
@@ -163,7 +168,7 @@ const Chat = () => {
                   <div className="relative">
                     <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold">
                       {activeConversation.participants
-                        .find((p) => p._id !== currentUser._id)
+                        .find((p) => p._id !== currentUser?._id)
                         ?.username.charAt(0)
                         .toUpperCase()}
                     </div>
@@ -171,7 +176,7 @@ const Chat = () => {
                       (user) =>
                         user._id ===
                         activeConversation.participants.find(
-                          (p) => p._id !== currentUser._id
+                          (p) => p._id !== currentUser?._id
                         )?._id
                     ) && (
                       <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-800"></div>
@@ -181,7 +186,7 @@ const Chat = () => {
                     <h3 className="text-lg font-medium text-white">
                       {
                         activeConversation.participants.find(
-                          (p) => p._id !== currentUser._id
+                          (p) => p._id !== currentUser?._id
                         )?.username
                       }
                     </h3>
@@ -193,7 +198,7 @@ const Chat = () => {
                     className="text-gray-400 hover:text-white hover:bg-gray-700 rounded-full p-2"
                     onClick={() => {
                       const otherUser = activeConversation.participants.find(
-                        (p) => p._id !== currentUser._id
+                        (p) => p._id !== currentUser?._id
                       );
                       if (otherUser) {
                         startCall(otherUser, "audio");
@@ -207,7 +212,7 @@ const Chat = () => {
                     className="text-gray-400 hover:text-white hover:bg-gray-700 rounded-full p-2"
                     onClick={() => {
                       const otherUser = activeConversation.participants.find(
-                        (p) => p._id !== currentUser._id
+                        (p) => p._id !== currentUser?._id
                       );
                       if (otherUser) {
                         startCall(otherUser, "video");

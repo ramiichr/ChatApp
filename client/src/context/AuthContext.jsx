@@ -13,27 +13,32 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      fetchUserData(token);
-    } else {
-      setLoading(false);
-    }
-  }, []);
+    const loadUser = async () => {
+      setLoading(true);
+      const token = localStorage.getItem("token");
 
-  const fetchUserData = async (token) => {
-    try {
-      const response = await axios.get("http://localhost:5000/api/users/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setCurrentUser(response.data);
-    } catch (err) {
-      localStorage.removeItem("token");
-      setError("Session expired. Please login again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Set default auth header for all requests
+        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+        const response = await axios.get("http://localhost:5000/api/users/me");
+        setCurrentUser(response.data);
+      } catch (err) {
+        console.error("Error loading user:", err);
+        localStorage.removeItem("token");
+        setError("Session expired. Please login again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUser();
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -45,8 +50,14 @@ export const AuthProvider = ({ children }) => {
           password,
         }
       );
-      localStorage.setItem("token", response.data.token);
-      setCurrentUser(response.data.user);
+
+      const { token, user } = response.data;
+      localStorage.setItem("token", token);
+
+      // Set default auth header
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+      setCurrentUser(user);
       return true;
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
@@ -65,8 +76,14 @@ export const AuthProvider = ({ children }) => {
           password,
         }
       );
-      localStorage.setItem("token", response.data.token);
-      setCurrentUser(response.data.user);
+
+      const { token, user } = response.data;
+      localStorage.setItem("token", token);
+
+      // Set default auth header
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+      setCurrentUser(user);
       return true;
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
@@ -76,6 +93,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem("token");
+    delete axios.defaults.headers.common["Authorization"];
     setCurrentUser(null);
   };
 

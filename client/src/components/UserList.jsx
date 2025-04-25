@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useSocket } from "../context/SocketContext";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { SearchIcon, PlusIcon, UserPlusIcon } from "lucide-react";
+import axios from "axios";
 
 const UserList = ({
   conversations,
@@ -18,42 +18,53 @@ const UserList = ({
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatEmail, setNewChatEmail] = useState("");
   const [error, setError] = useState("");
-  const { socket } = useSocket();
+  const [isLoading, setIsLoading] = useState(false);
 
   const filteredConversations = conversations.filter((conversation) => {
     const otherUser = conversation.participants.find(
-      (p) => p._id !== currentUser._id
+      (p) => p._id !== currentUser?._id
     );
     return otherUser?.username.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
   const handleCreateConversation = async () => {
+    if (!newChatEmail.trim()) {
+      setError("Please enter an email address");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
     try {
-      setError("");
-      const response = await fetch("http://localhost:5000/api/conversations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ email: newChatEmail }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to create conversation");
-      }
+      const token = localStorage.getItem("token");
+      const response = await axios.post(
+        "http://localhost:5000/api/conversations",
+        { email: newChatEmail },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       // Add the new conversation to the list
-      setConversations((prev) => [...prev, data]);
-      setShowNewChat(false);
-      setNewChatEmail("");
+      setConversations((prev) => [...prev, response.data]);
 
       // Select the new conversation
-      onSelect(data);
+      onSelect(response.data);
+
+      // Reset form
+      setShowNewChat(false);
+      setNewChatEmail("");
     } catch (err) {
-      setError(err.message);
+      console.error("Error creating conversation:", err);
+      setError(
+        err.response?.data?.message ||
+          "Failed to create conversation. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -104,9 +115,16 @@ const UserList = ({
               size="sm"
               className="bg-purple-600 hover:bg-purple-700 text-white"
               onClick={handleCreateConversation}
+              disabled={isLoading}
             >
-              <UserPlusIcon size={16} className="mr-1" />
-              Add
+              {isLoading ? (
+                "Adding..."
+              ) : (
+                <>
+                  <UserPlusIcon size={16} className="mr-1" />
+                  Add
+                </>
+              )}
             </Button>
             <Button
               size="sm"
@@ -115,6 +133,7 @@ const UserList = ({
               onClick={() => {
                 setShowNewChat(false);
                 setError("");
+                setNewChatEmail("");
               }}
             >
               Cancel
@@ -128,7 +147,7 @@ const UserList = ({
           <ul className="space-y-1 p-2">
             {filteredConversations.map((conversation) => {
               const otherUser = conversation.participants.find(
-                (p) => p._id !== currentUser._id
+                (p) => p._id !== currentUser?._id
               );
               const isOnline = onlineUsers.some(
                 (user) => user._id === otherUser?._id
