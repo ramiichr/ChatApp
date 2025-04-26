@@ -2,7 +2,7 @@
 
 A feature-rich real-time chat application with text, voice, and video capabilities built with modern web technologies.
 
-![ChatApp](https://via.placeholder.com/800x400?text=ChatApp+Screenshot)
+![ChatApp](/client/public/chatapp-screenshot.png)
 
 ## Features
 
