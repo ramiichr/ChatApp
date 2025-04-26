@@ -38,9 +38,11 @@ app.use(express.json());
 
 // Connect to MongoDB
 console.log("Attempting to connect to MongoDB...");
-const mongoUri =
-  process.env.MONGODB_URI ||
-  "mongodb+srv://ramiirchr:Ramichr670@chatapp.hesoxgt.mongodb.net/chatapp?retryWrites=true&w=majority";
+const mongoUri = process.env.MONGODB_URI;
+if (!mongoUri) {
+  console.error("MONGODB_URI environment variable is not set!");
+  process.exit(1); // Exit if no connection string is provided
+}
 console.log(
   "MongoDB URI (masked):",
   mongoUri.replace(
