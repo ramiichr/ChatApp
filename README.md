@@ -2,8 +2,6 @@
 
 A feature-rich real-time chat application with text, voice, and video capabilities built with modern web technologies.
 
-![ChatApp](/client/public/chatapp-screenshot.png)
-
 ## Features
 
 - **Real-time Messaging**: Instant message delivery using Socket.io
